@@ -3,6 +3,13 @@ Production / cloud settings, intended for AWS Elastic Beanstalk.
 Every value here is read from environment variables (set via EB
 environment properties / AWS Systems Manager Parameter Store) —
 nothing sensitive is committed to GitHub.
+
+NOTE: This environment currently runs as a free-tier "Single instance"
+EB environment with no load balancer, so there is no HTTPS listener.
+SECURE_SSL_REDIRECT / SESSION_COOKIE_SECURE / CSRF_COOKIE_SECURE are
+gated behind USE_HTTPS (default False) to match that. Once a load
+balancer + ACM certificate are added (future sprint), set
+USE_HTTPS=True in EB environment properties to re-enable them.
 """
 
 from .base import *  # noqa
@@ -24,13 +31,17 @@ DATABASES = {
     }
 }
 
-# EB terminates SSL at the load balancer and forwards plain HTTP —
-# without this, SECURE_SSL_REDIRECT causes an infinite redirect loop.
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# This environment has no HTTPS listener yet (free-tier single-instance
+# EB, no load balancer/ACM cert). These default to False so the app is
+# actually usable over plain HTTP right now. Flip USE_HTTPS=True in EB
+# env vars once HTTPS is added.
+USE_HTTPS = config('USE_HTTPS', default=False, cast=bool)
 
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = USE_HTTPS
+SESSION_COOKIE_SECURE = USE_HTTPS
+CSRF_COOKIE_SECURE = USE_HTTPS
+
 CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
