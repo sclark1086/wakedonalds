@@ -8,8 +8,8 @@ python-decouple, so nothing environment-specific is hardcoded here.
 from pathlib import Path
 from decouple import config
 
-# BASE_DIR points to the project root (two levels up from this file,
-# since settings now live in wakedonalds/settings/base.py)
+# BASE_DIR points to the project root (three levels up from this file,
+# since settings live in wakedonalds/settings/base.py)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-placeholder-change-me')
@@ -27,6 +27,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -68,6 +69,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
