@@ -1,0 +1,104 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout | Wakedonalds</title>
+    <link rel="stylesheet" href="{% static 'orders/fulfillment.css' %}">
+</head>
+<body>
+
+<header>
+    <h1>Checkout</h1>
+    <p><a href="{% url 'menu' %}">Back to menu</a></p>
+</header>
+
+<main class="container">
+    {% csrf_token %}
+    <section class="panel" id="wd-fulfillment" data-subtotal="{{ subtotal }}"
+             data-options-url="{% url 'fulfillment-options' %}"
+             data-quote-url="{% url 'fulfillment-quote' %}"
+             aria-labelledby="wd-title">
+        <h2 id="wd-title">How do you want your order?</h2>
+
+        <div class="choice" role="radiogroup" aria-label="Pickup or delivery">
+            <label class="choice-option">
+                <input type="radio" name="fulfillment_type" value="pickup" checked>
+                <span class="choice-body">
+                    <strong>Pickup</strong>
+                    <span class="muted" data-meta="pickup">Ready in about 15 min</span>
+                </span>
+            </label>
+            <label class="choice-option">
+                <input type="radio" name="fulfillment_type" value="delivery">
+                <span class="choice-body">
+                    <strong>Delivery</strong>
+                    <span class="muted" data-meta="delivery">About 40 min</span>
+                </span>
+            </label>
+        </div>
+        <p class="error" data-error="fulfillment_type" role="alert"></p>
+
+        <div class="field">
+            <label for="wd-phone">Phone <span class="muted" data-phone-hint>(optional, for a text when it's ready)</span></label>
+            <input id="wd-phone" name="contact_phone" type="tel" autocomplete="tel" inputmode="tel">
+            <p class="error" data-error="contact_phone" role="alert"></p>
+        </div>
+
+        <fieldset class="address" id="wd-address" hidden>
+            <legend>Delivery address</legend>
+            <p class="error" data-error="address" role="alert"></p>
+            <div class="field">
+                <label for="wd-street">Street address</label>
+                <input id="wd-street" name="street" autocomplete="address-line1">
+                <p class="error" data-error="street" role="alert"></p>
+            </div>
+            <div class="field">
+                <label for="wd-unit">Apt, suite, or unit <span class="muted">(optional)</span></label>
+                <input id="wd-unit" name="unit" autocomplete="address-line2">
+            </div>
+            <div class="row">
+                <div class="field grow">
+                    <label for="wd-city">City</label>
+                    <input id="wd-city" name="city" autocomplete="address-level2">
+                    <p class="error" data-error="city" role="alert"></p>
+                </div>
+                <div class="field state">
+                    <label for="wd-state">State</label>
+                    <input id="wd-state" name="state" maxlength="2" autocomplete="address-level1">
+                    <p class="error" data-error="state" role="alert"></p>
+                </div>
+                <div class="field zip">
+                    <label for="wd-zip">ZIP</label>
+                    <input id="wd-zip" name="zip" inputmode="numeric" maxlength="10" autocomplete="postal-code">
+                    <p class="error" data-error="zip" role="alert"></p>
+                </div>
+            </div>
+            <div class="field">
+                <label for="wd-instructions">Notes for the driver <span class="muted">(optional)</span></label>
+                <input id="wd-instructions" name="instructions" maxlength="255" placeholder="Gate code, leave at door">
+            </div>
+        </fieldset>
+    </section>
+
+    <section class="panel" aria-labelledby="wd-summary-title">
+        <h2 id="wd-summary-title">Order summary</h2>
+        <dl class="summary" aria-live="polite">
+            <div><dt>Subtotal</dt><dd data-total="subtotal">—</dd></div>
+            <div data-row="delivery" hidden><dt>Delivery fee</dt><dd data-total="delivery_fee">—</dd></div>
+            <div><dt>Tax</dt><dd data-total="tax">—</dd></div>
+            <div class="summary-total"><dt>Total</dt><dd data-total="total_price">—</dd></div>
+        </dl>
+        <p class="muted" data-free-hint hidden></p>
+        <p class="muted" data-ready></p>
+        <p class="error" data-error="subtotal" role="alert"></p>
+        <!-- The place-order task hooks in here: call WDFulfillment.isValid() then
+             send WDFulfillment.getPayload() along with the cart to the order API. -->
+        <button type="button" id="wd-continue" class="btn">Continue to payment</button>
+    </section>
+</main>
+
+<script src="{% static 'orders/fulfillment.js' %}"></script>
+</body>
+</html>
