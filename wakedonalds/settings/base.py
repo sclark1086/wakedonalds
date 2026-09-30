@@ -78,3 +78,8 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
 }
+# Default sender for order confirmation emails
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL',
+    default='Wakedonalds <noreply@example.com>'
+)
