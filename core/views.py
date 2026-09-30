@@ -1,7 +1,7 @@
 from django.db import connection
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-
+from django.shortcuts import render
 
 @api_view(['GET'])
 def health_check(request):
@@ -31,3 +31,52 @@ def health_check(request):
         "service": "wakedonalds-backend",
         "database": db_status,
     })
+    
+def menu_view(request):
+    categories = {
+        "Burgers": [
+            {
+                "name": "Classic Burger",
+                "price": 5.99,
+                "description": "Beef patty with lettuce, tomato, pickles, and house sauce."
+            },
+            {
+                "name": "Cheeseburger",
+                "price": 6.49,
+                "description": "Beef patty with American cheese, lettuce, tomato, and pickles."
+            }
+        ],
+        "Sides": [
+            {
+                "name": "French Fries",
+                "price": 2.49,
+                "description": "Crispy golden fries."
+            },
+            {
+                "name": "Onion Rings",
+                "price": 3.49,
+                "description": "Crispy battered onion rings."
+            }
+        ],
+        "Drinks": [
+            {
+                "name": "Soft Drink",
+                "price": 1.99,
+                "description": "Choice of fountain drink."
+            },
+            {
+                "name": "Iced Tea",
+                "price": 1.99,
+                "description": "Freshly brewed iced tea."
+            }
+        ],
+        "Desserts": [
+            {
+                "name": "Apple Pie",
+                "price": 2.99,
+                "description": "Warm apple pie."
+            }
+        ]
+    }
+
+    return render(request, "menu.html", {"categories": categories})
