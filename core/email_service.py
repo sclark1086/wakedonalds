@@ -1,4 +1,18 @@
-subject = f"Wakedonalds Order Confirmation #{order_number}"
+from django.conf import settings
+from django.core.mail import send_mail
+
+
+def send_order_confirmation(customer_email, order_number, items, total_price):
+    """
+    Send an order confirmation email to the customer.
+    """
+
+    item_details = "\n".join(
+        f"{item['name']} x{item['quantity']} - ${item['price']:.2f} each"
+        for item in items
+    )
+
+    subject = f"Wakedonalds Order Confirmation #{order_number}"
 
     message = (
         "Thank you for ordering from Wakedonalds!\n\n"
