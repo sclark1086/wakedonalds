@@ -1,5 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
+from core.email_service import send_order_confirmation
 
 TAX_RATE = Decimal("0.0725")
 
@@ -76,5 +77,34 @@ def finalize_order(user_id, cart_items):
         "date": datetime.now(),
         "items": order_items
     }
+
+    return order
+
+def finalize_order_with_email(
+    user_id,
+    customer_email,
+    cart_items,
+    order_number
+):
+    order = finalize_order(user_id, cart_items)
+
+    email_items = []
+
+    for item in cart_items:
+        email_items.append({
+            "name": item.get(
+                "name",
+                f"Item {item['item_number']}"
+            ),
+            "quantity": int(item["quantity"]),
+            "price": float(item["price"])
+        })
+
+    send_order_confirmation(
+        customer_email=customer_email,
+        order_number=order_number,
+        items=email_items,
+        total_price=float(order["total_price"])
+    )
 
     return order
