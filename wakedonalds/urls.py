@@ -9,4 +9,5 @@ urlpatterns = [
     path('api/health/', health_check, name='health-check'),
     path('api/cart/', include('cart.urls')),
     path('menu/', menu_view, name='menu'),
+    path('api/accounts/', include('accounts.urls')),
 ]
