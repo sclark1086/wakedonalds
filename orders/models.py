@@ -16,6 +16,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
@@ -139,13 +140,26 @@ class Order(models.Model):
     def order_num(self):
         return self.pk
 
+    def status_matches_type(self):
+        return self.status in self.STATUS_FLOW.get(self.fulfillment_type, [])
+
     def next_status(self):
+        if not self.status_matches_type():
+            return None  # e.g. a delivery order set to "Ready for pickup" in admin
         flow = self.STATUS_FLOW[self.fulfillment_type]
         i = flow.index(self.status)
         return flow[i + 1] if i + 1 < len(flow) else None
 
     def can_transition_to(self, new_status):
         return new_status is not None and new_status == self.next_status()
+
+    def clean(self):
+        super().clean()
+        if self.fulfillment_type in self.STATUS_FLOW and not self.status_matches_type():
+            raise ValidationError({
+                "status": f"'{self.get_status_display()}' isn't a valid status for a "
+                          f"{self.get_fulfillment_type_display().lower()} order.",
+            })
 
     @staticmethod
     def estimate_ready_at(fulfillment_type, store_settings, now=None):

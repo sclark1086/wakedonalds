@@ -53,6 +53,14 @@ def update_order_status(request, order_id):
     serializer.is_valid(raise_exception=True)
     new_status = serializer.validated_data["status"]
 
+    if not order.status_matches_type():
+        return Response(
+            {"errors": {"status": f"This {order.get_fulfillment_type_display().lower()} order is marked "
+                                  f"'{order.get_status_display()}', which doesn't fit its type. "
+                                  f"Fix it in the admin first."},
+             "next_status": None},
+            status=status.HTTP_409_CONFLICT,
+        )
     if not order.can_transition_to(new_status):
         return Response(
             {"errors": {"status": f"A {order.get_fulfillment_type_display().lower()} order can't go from "

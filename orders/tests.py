@@ -2,6 +2,7 @@ from datetime import datetime, timezone as dt_tz
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -108,6 +109,20 @@ class OrderModelTests(TestCase):
     def test_last_status_has_no_next(self):
         self.assertIsNone(self.make("delivery", "delivered").next_status())
 
+    def test_mismatched_status_has_no_next(self):
+        o = self.make("delivery", "ready_for_pickup")
+        self.assertIsNone(o.next_status())
+        self.assertFalse(o.can_transition_to("delivered"))
+
+    def test_clean_rejects_status_from_other_flow(self):
+        o = Order(fulfillment_type="delivery", status="ready_for_pickup", subtotal=10, tax=1, total_price=11)
+        with self.assertRaises(ValidationError) as ctx:
+            o.full_clean()
+        self.assertIn("status", ctx.exception.message_dict)
+
+    def test_clean_accepts_matching_status(self):
+        Order(fulfillment_type="pickup", status="ready_for_pickup", subtotal=10, tax=1, total_price=11).full_clean()
+
     def test_ready_estimate(self):
         store = FulfillmentSettings.load()
         now = datetime(2026, 4, 1, 12, 0, tzinfo=dt_tz.utc)
@@ -183,3 +198,12 @@ class OrderStatusApiTests(TestCase):
         self.client.force_authenticate(self.staff)
         res = self.client.patch(self.url, {"status": "out_for_delivery"}, format="json")
         self.assertEqual(res.status_code, 409)
+
+    def test_mismatched_order_returns_409_not_500(self):
+        self.order.fulfillment_type = "delivery"
+        self.order.status = "ready_for_pickup"
+        self.order.save()
+        self.client.force_authenticate(self.staff)
+        res = self.client.patch(self.url, {"status": "delivered"}, format="json")
+        self.assertEqual(res.status_code, 409)
+        self.assertIsNone(res.data["next_status"])
