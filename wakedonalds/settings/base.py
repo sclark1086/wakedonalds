@@ -26,6 +26,9 @@ INSTALLED_APPS = [
     'orders',
     'products',
     'cart',
+    'accounts',
+    'rest_framework.authtoken',
+    'orders',
 ]
 
 MIDDLEWARE = [
@@ -76,7 +79,12 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
