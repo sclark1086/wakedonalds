@@ -7,4 +7,5 @@ staticfiles/
 .DS_Store
 venv/
 env/
+*.zip
 .idea/
