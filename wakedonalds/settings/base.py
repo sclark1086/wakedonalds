@@ -12,7 +12,10 @@ from decouple import config
 # since settings live in wakedonalds/settings/base.py)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-placeholder-change-me')
+SECRET_KEY = config(
+    'SECRET_KEY',
+    default='django-insecure-placeholder-change-me'
+)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -28,7 +31,6 @@ INSTALLED_APPS = [
     'cart',
     'accounts',
     'rest_framework.authtoken',
-    'orders',
 ]
 
 MIDDLEWARE = [
@@ -62,10 +64,30 @@ TEMPLATES = [
 WSGI_APPLICATION = 'wakedonalds.wsgi.application'
 
 AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+    {
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'UserAttributeSimilarityValidator'
+        )
+    },
+    {
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'MinimumLengthValidator'
+        )
+    },
+    {
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'CommonPasswordValidator'
+        )
+    },
+    {
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'NumericPasswordValidator'
+        )
+    },
 ]
 
 LANGUAGE_CODE = 'en-us'
@@ -75,10 +97,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = (
+    'whitenoise.storage.CompressedManifestStaticFilesStorage'
+)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -89,3 +112,9 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
 }
+
+# Default sender for order confirmation emails
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL',
+    default='Wakedonalds <noreply@example.com>'
+)
