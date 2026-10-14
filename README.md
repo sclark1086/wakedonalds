@@ -1,45 +1,64 @@
-# Wakedonalds Backend
+## Sprint 2: Pickup and Delivery (feature 2.2)
 
-## Sprint 1: Cloud Environment Setup (task 1.2)
+### Complete
+- New `orders` app so customers can choose pickup or delivery at
+  checkout (SRS UC1 step 5). Delivery adds a fee to the order total,
+  checks the address against the delivery area, and each order gets an
+  estimated ready time.
+- Models (`orders/models.py`):
+  - `Order` — based on ORDERS in the team's schema diagram, plus
+    pickup/delivery type, delivery address, contact phone, subtotal,
+    delivery fee, tax, total, status, and estimated ready time.
+    `user` is optional so guests can order.
+  - `FulfillmentSettings` — a single row holding the delivery fee,
+    free-delivery threshold, delivery minimum, tax rate, and prep
+    times. Defaults: $3.99 fee, free over $30, $10 minimum, 7.25% tax,
+    15 min prep, +25 min for delivery.
+  - `DeliveryZone` — ZIP codes the restaurant delivers to.
+- Admins change fees, tax, prep times, and delivery ZIPs in `/admin/`,
+  with no code changes or redeploy needed.
+- Pickup and delivery orders each have their own status flow:
+  - Pickup: received → in progress → ready for pickup → completed
+  - Delivery: received → in progress → out for delivery → delivered
+  Only staff can change a status, and only one step at a time.
+- Checkout page at `/checkout/` with the pickup/delivery choice,
+  delivery address form, and a live order summary. Works on phones.
+- 25 automated tests in `orders/tests.py`.
 
-### What's done
-- Django project basics built with Django REST Framework installed, so
-  the backend can serve JSON data to a web frontend and/or the mobile
-  app (rather than only rendered HTML pages).
-- Settings split into local vs. production, so dev and cloud config
-  never mix on accident:
-  - `wakedonalds/settings/base.py` — shared settings
-  - `wakedonalds/settings/local.py` — SQLite, debug on, zero setup for
-    any teammate cloning the repo
-  - `wakedonalds/settings/production.py` — MySQL via environment
-    variables, debug off, SSL enforced — ready to point at AWS RDS
-    once it's provisioned
-- All secrets/config (DB credentials, email credentials, allowed
-  hosts) are read from environment variables via `python-decouple`,
-  never hardcoded. See `.env.example` for the full list.
-- `/api/health/` endpoint is live and tested, it checks the database
-  connection and returns JSON status. This doubles as the kind of
-  endpoint AWS Elastic Beanstalk uses for load balancer health checks.
-- `requirements.txt` pinned for local dev and the eventual MySQL/
-  gunicorn production setup.
-- Other teammates' work (schema, menu UI, cart) just needs a new
-  Django app added to `INSTALLED_APPS` — no changes to this config
-  required to plug in.
+### API endpoints
+| Method | URL | What it does |
+|---|---|---|
+| GET | `/api/fulfillment/options/` | Settings the checkout page needs (fees, times, what's enabled) |
+| POST | `/api/fulfillment/quote/` | Checks a pickup/delivery choice and returns subtotal, delivery fee, tax, total, and ready time |
+| PATCH | `/api/orders/<id>/status/` | Staff only: moves an order to its next status |
 
-### What's not done yet (next sprint)
-- No AWS resources are provisioned yet — no RDS instance, no Elastic
-  Beanstalk environment. `production.py` is written and ready to point
-  at them the moment they exist.
-- No S3/static file storage configured yet.
-- No CI/CD (GitHub Actions) for automated deploys yet.
+### Not done yet (next sprint)
+- Placing an order isn't built out yet. That needs the cart and
+  products merged into `main`, plus an `OrderItem` model. Until then,
+  `/checkout/` uses a demo subtotal, and "Continue to payment" only
+  validates the form. The place-order view should reuse
+  `FulfillmentSerializer` and `calculate_totals()` so pricing rules
+  stay in one place.
+- No text or email notification when an order is ready (UC3) yet.
+- The delivery area is set by ZIP code, not by distance.
+- Tax currently applies to food only, not the delivery fee. The team
+  should confirm this is correct.
 
-### Running locally
+### Testing locally
 ```bash
+python -m venv venv
+venv\Scripts\activate          # Windows (Mac/Linux: source venv/bin/activate)
 pip install -r requirements.txt
 python manage.py migrate
+python manage.py createsuperuser
 python manage.py runserver
 ```
-Then visit `http://localhost:8000/api/health/` — should return:
-```json
-{"status": "ok", "service": "wakedonalds-backend", "database": "connected"}
+1. Go to `http://localhost:8000/admin/`, log in, and add a ZIP code
+   (for example `12345`) under **Delivery zones**.
+2. Go to `http://localhost:8000/checkout/`. To try a different cart
+   total, add it to the URL, e.g. `/checkout/?subtotal=35.00`.
+
+Run the tests with:
+```bash
+python manage.py test orders
 ```
