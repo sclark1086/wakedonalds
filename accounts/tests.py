@@ -11,7 +11,8 @@ class RegistrationTests(APITestCase):
             "/api/accounts/register/",
             {
                 "username": "testuser",
-                "password": "SecurePassword123!"
+                "email": "testuser@example.com",
+                "password": "TestPassword123!"
             },
             format="json"
         )
@@ -22,14 +23,17 @@ class RegistrationTests(APITestCase):
         )
 
     def test_password_is_hashed(self):
-        self.client.post(
+        response = self.client.post(
             "/api/accounts/register/",
             {
                 "username": "testuser2",
+                "email": "testuser2@example.com",
                 "password": "SecurePassword123!"
             },
             format="json"
         )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         user = User.objects.get(username="testuser2")
 
@@ -176,4 +180,104 @@ class AuthenticationIntegrationTests(APITestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK
+        )
+
+
+class RegistrationValidationTests(APITestCase):
+
+    def test_weak_password_is_rejected(self):
+        response = self.client.post(
+            "/api/accounts/register/",
+            {
+                "username": "weak",
+                "email": "weak@example.com",
+                "password": "1",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("password", response.data)
+
+    def test_email_is_required(self):
+        response = self.client.post(
+            "/api/accounts/register/",
+            {
+                "username": "noemail",
+                "password": "SecurePassword123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("email", response.data)
+
+
+class TokenCartAccessTests(APITestCase):
+
+    def setUp(self):
+        from products.models import Product
+
+        User.objects.create_user(
+            username="shopper",
+            password="SecurePassword123!",
+        )
+
+        login = self.client.post(
+            "/api/accounts/login/",
+            {
+                "username": "shopper",
+                "password": "SecurePassword123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+
+        self.client.credentials(
+            HTTP_AUTHORIZATION="Token " + login.data["token"]
+        )
+
+        self.product = Product.objects.create(
+            name="Classic Burger",
+            price=5.99,
+            stock=10,
+        )
+
+    def test_token_user_can_add_update_and_remove_items(self):
+        add = self.client.post(
+            "/api/cart/items/",
+            {
+                "product_id": self.product.id,
+                "quantity": 1,
+            },
+            format="json",
+        )
+        self.assertEqual(add.status_code, status.HTTP_200_OK)
+
+        cart = self.client.get("/api/cart/")
+        self.assertEqual(cart.status_code, status.HTTP_200_OK)
+        self.assertTrue(cart.data["items"])
+
+        item_id = cart.data["items"][0]["id"]
+
+        update = self.client.patch(
+            f"/api/cart/items/{item_id}/",
+            {"quantity": 3},
+            format="json",
+        )
+        self.assertEqual(update.status_code, status.HTTP_200_OK)
+
+        delete = self.client.delete(
+            f"/api/cart/items/{item_id}/"
+        )
+        self.assertEqual(
+            delete.status_code,
+            status.HTTP_204_NO_CONTENT,
         )
