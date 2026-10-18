@@ -1,0 +1,76 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order #{{ order.pk }} | Wakedonalds</title>
+    <link rel="stylesheet" href="{% static 'orders/fulfillment.css' %}">
+    <link rel="stylesheet" href="{% static 'orders/order_status.css' %}">
+</head>
+<body>
+
+<header>
+    <h1>Order #{{ order.pk }}</h1>
+    <p><a href="{% url 'menu' %}">Back to menu</a></p>
+</header>
+
+<main class="container" id="wd-tracking"
+      data-api-url="{% url 'order-tracking' order.tracking_code %}">
+
+    <section class="panel" aria-labelledby="wd-status-title">
+        <h2 id="wd-status-title">Order status</h2>
+
+        <div class="status-now" aria-live="polite">
+            <p class="status-label" data-field="status_label">{{ order.get_status_display }}</p>
+            <p class="status-message" data-field="status_message">{{ initial_data.status_message }}</p>
+            <p class="muted" data-field="eta"></p>
+        </div>
+
+        <ol class="steps" data-steps>
+            {% for step in initial_data.steps %}
+                <li class="step{% if step.done %} done{% endif %}{% if step.current %} current{% endif %}"
+                    {% if step.current %}aria-current="step"{% endif %}>
+                    <span class="step-dot" aria-hidden="true"></span>
+                    <span class="step-text">
+                        <strong>{{ step.label }}</strong>
+                        <span class="muted step-time" data-time="{{ step.reached_at|default_if_none:'' }}"></span>
+                    </span>
+                </li>
+            {% endfor %}
+        </ol>
+
+        <p class="muted live-note" data-live-note>This page updates automatically.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="wd-receipt-title">
+        <h2 id="wd-receipt-title">Receipt</h2>
+        <p class="muted">{{ order.get_fulfillment_type_display }} order
+            · placed <span data-time-full="{{ initial_data.created_at }}"></span></p>
+
+        <ul class="receipt-items">
+            {% for item in order.items.all %}
+                <li>
+                    <span>{{ item.name }} <span class="muted">x{{ item.quantity }}</span></span>
+                    <span>${{ item.line_total }}</span>
+                </li>
+            {% empty %}
+                <li class="muted">No items recorded for this order.</li>
+            {% endfor %}
+        </ul>
+
+        <dl class="summary">
+            <div><dt>Subtotal</dt><dd>${{ order.subtotal }}</dd></div>
+            {% if order.fulfillment_type == "delivery" %}
+                <div><dt>Delivery fee</dt><dd>${{ order.delivery_fee }}</dd></div>
+            {% endif %}
+            <div><dt>Tax</dt><dd>${{ order.tax }}</dd></div>
+            <div class="summary-total"><dt>Total</dt><dd>${{ order.total_price }}</dd></div>
+        </dl>
+    </section>
+</main>
+
+{{ initial_data|json_script:"wd-initial-order" }}
+<script src="{% static 'orders/order_status.js' %}"></script>
+</body>
+</html>

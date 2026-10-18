@@ -4,6 +4,8 @@
 //   WDFulfillment.setSubtotal("14.97")   when the cart total changes
 //   WDFulfillment.isValid()              before submitting (shows inline errors)
 //   WDFulfillment.getPayload()           merge into the order request body
+//   WDFulfillment.showServerErrors(e)    show field errors returned by the server
+// The Place order button is handled in place_order.js.
 (function () {
     const root = document.getElementById("wd-fulfillment");
     if (!root) return;
@@ -147,15 +149,11 @@
     ["#wd-zip", "#wd-street", "#wd-city", "#wd-state", "#wd-phone"].forEach((sel) =>
         $(sel).addEventListener("input", requestQuote));
 
-    const continueBtn = $("#wd-continue");
-    if (continueBtn) continueBtn.addEventListener("click", () => {
-        if (isValid()) console.log("Fulfillment payload ready:", getPayload());
-    });
-
     window.WDFulfillment = {
         setSubtotal(value) { state.subtotal = Number(value); preview(); requestQuote(); },
         getPayload,
         isValid,
+        showServerErrors(errors) { showErrors(flatten(errors)); },
     };
 
     init();
