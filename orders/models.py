@@ -7,19 +7,29 @@ pattern from CFD1-CFD3 (settings editable in Django admin, no redeploy).
 
 Order follows the ORDERS table in the team's schema diagram
 (order_num -> id, user_id, total_price, date -> created_at), extended
-with the fulfillment fields this feature needs. ORDER_ITEM is left for
-the checkout/place-order task because it depends on the Product model
-on the cart branch, which isn't merged into main yet.
+with the fulfillment fields this feature needs.
+
+Sprint 3, feature 3.3 (real-time order status tracking) adds OrderItem
+(the ORDER_ITEM table), OrderStatusEvent (when each status was reached)
+and a private tracking code so customers can follow an order live.
 """
 
+import secrets
 from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
+
+from .signals import order_status_changed
+
+
+def new_tracking_code():
+    """Hard-to-guess code for the customer's tracking link (about 72 bits)."""
+    return secrets.token_urlsafe(9)
 
 
 class FulfillmentSettings(models.Model):
@@ -130,11 +140,58 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Private code for the customer's tracking link (3.3). Nullable only so
+    # orders created before this field existed could be backfilled.
+    tracking_code = models.CharField(
+        max_length=16, unique=True, null=True, blank=True, editable=False,
+    )
+
+    # Statuses after which nothing else happens, so tracking can stop.
+    FINAL_STATUSES = {Status.COMPLETED, Status.DELIVERED}
+
     class Meta:
         ordering = ["-created_at"]
 
     def __str__(self):
         return f"Order #{self.pk} ({self.get_fulfillment_type_display()})"
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        # Remember the saved status so save() can tell when it changes.
+        instance._saved_status = instance.__dict__.get("status")
+        return instance
+
+    def save(self, *args, **kwargs):
+        """
+        Records an OrderStatusEvent whenever the status changes (including
+        admin edits) and sends order_status_changed after the database
+        commit, so other features (like SMS when ready, 3.4) can react.
+        """
+        creating = self._state.adding
+        old_status = getattr(self, "_saved_status", None)
+
+        if not self.tracking_code:
+            self.tracking_code = new_tracking_code()
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                kwargs["update_fields"] = {*update_fields, "tracking_code"}
+
+        super().save(*args, **kwargs)
+
+        if creating or old_status != self.status:
+            OrderStatusEvent.objects.create(order=self, status=self.status)
+            self._saved_status = self.status
+            new_status = self.status
+            transaction.on_commit(lambda: order_status_changed.send(
+                sender=Order, order=self,
+                old_status=None if creating else old_status,
+                new_status=new_status,
+            ))
+
+    @property
+    def is_final(self):
+        return self.status in self.FINAL_STATUSES
 
     @property
     def order_num(self):
@@ -168,3 +225,44 @@ class Order(models.Model):
         if fulfillment_type == Order.FulfillmentType.DELIVERY:
             minutes += store_settings.delivery_extra_minutes
         return now + timedelta(minutes=minutes)
+
+
+class OrderItem(models.Model):
+    """
+    One line of an order (ORDER_ITEM in the schema diagram). Name and price
+    are copied from the product when the order is placed, so the receipt
+    stays correct if the menu changes later.
+    """
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(
+        "products.Product", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    name = models.CharField(max_length=100)
+    unit_price = models.DecimalField(max_digits=8, decimal_places=2)
+    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.name} x{self.quantity}"
+
+    @property
+    def line_total(self):
+        return self.unit_price * self.quantity
+
+
+class OrderStatusEvent(models.Model):
+    """When an order reached each status. Created by Order.save()."""
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="status_events")
+    status = models.CharField(max_length=20, choices=Order.Status.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"Order #{self.order_id}: {self.get_status_display()}"

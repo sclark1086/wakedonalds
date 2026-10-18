@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import DeliveryZone, FulfillmentSettings, Order
+from .models import DeliveryZone, FulfillmentSettings, Order, OrderItem, OrderStatusEvent
 
 
 @admin.register(FulfillmentSettings)
@@ -23,9 +23,34 @@ class DeliveryZoneAdmin(admin.ModelAdmin):
     search_fields = ("zip_code",)
 
 
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    extra = 0
+    fields = ("name", "unit_price", "quantity")
+    readonly_fields = fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class OrderStatusEventInline(admin.TabularInline):
+    """Read-only history of when each status was reached (3.3)."""
+
+    model = OrderStatusEvent
+    extra = 0
+    fields = ("status", "created_at")
+    readonly_fields = fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ("id", "fulfillment_type", "status", "total_price", "delivery_zip", "created_at")
     list_filter = ("fulfillment_type", "status")
-    search_fields = ("id", "contact_phone", "delivery_street", "delivery_zip")
-    readonly_fields = ("created_at", "updated_at")
+    search_fields = ("id", "contact_phone", "delivery_street", "delivery_zip", "tracking_code")
+    readonly_fields = ("created_at", "updated_at", "tracking_code")
+    inlines = [OrderItemInline, OrderStatusEventInline]

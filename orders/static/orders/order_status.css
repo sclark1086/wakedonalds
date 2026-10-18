@@ -1,0 +1,48 @@
+/* Order tracking page (3.3). Builds on fulfillment.css for the shared look. */
+
+.status-now { margin-bottom: 18px; }
+.status-label { font-size: 1.5rem; font-weight: bold; margin: 0 0 4px; }
+.status-message { margin: 0 0 4px; }
+
+.steps { list-style: none; margin: 0; padding: 0; }
+.step { position: relative; display: flex; gap: 12px; padding: 0 0 18px; color: var(--muted); }
+.step:last-child { padding-bottom: 0; }
+
+/* Line connecting each step to the next one */
+.step:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 20px;
+    bottom: 0;
+    width: 2px;
+    background: var(--line);
+}
+.step.done:not(:last-child)::before { background: var(--accent); }
+
+.step-dot {
+    flex: 0 0 18px;
+    height: 18px;
+    box-sizing: border-box;
+    border: 2px solid var(--line);
+    border-radius: 50%;
+    background: var(--card);
+}
+.step.done { color: var(--ink); }
+.step.done .step-dot { border-color: var(--accent); background: var(--accent); }
+.step.current .step-dot { box-shadow: 0 0 0 4px #ddd; }
+
+.step-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.step-time:empty { display: none; }
+
+.live-note { margin: 18px 0 0; }
+
+.receipt-items { list-style: none; margin: 0 0 12px; padding: 0; }
+.receipt-items li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+    font-variant-numeric: tabular-nums;
+}
