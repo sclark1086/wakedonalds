@@ -1,7 +1,14 @@
+from datetime import timedelta
+from django_otp.plugins.otp_totp.models import TOTPDevice
+from accounts.models import AccountSecurity
 from django.contrib.auth.models import User
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
+from django_otp.oath import totp
 from cart.models import Cart
+from rest_framework.authtoken.models import Token
+from accounts.authentication import TOKEN_LIFETIME_HOURS
 
 
 class RegistrationTests(APITestCase):
@@ -281,3 +288,203 @@ class TokenCartAccessTests(APITestCase):
             delete.status_code,
             status.HTTP_204_NO_CONTENT,
         )
+
+
+class LoginLockoutTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="lockoutuser",
+            password="SecurePassword123!",
+        )
+        self.login_url = "/api/accounts/login/"
+
+    def test_three_failed_attempts_trigger_lockout(self):
+        for _ in range(3):
+            response = self.client.post(
+                self.login_url,
+                {
+                    "username": "lockoutuser",
+                    "password": "WrongPassword123!",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": "lockoutuser",
+                "password": "SecurePassword123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        self.assertNotIn("token", response.data)
+
+    def test_expired_lockout_allows_login_again(self):
+        from .models import AccountSecurity
+
+        security = AccountSecurity.objects.create(
+            user=self.user,
+            failed_login_attempts=3,
+            locked_until=timezone.now() - timedelta(minutes=1),
+        )
+
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": "lockoutuser",
+                "password": "SecurePassword123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+
+        security.refresh_from_db()
+        self.assertEqual(security.failed_login_attempts, 0)
+        self.assertIsNone(security.locked_until)
+
+
+
+class AdminTwoFactorTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="testadmin",
+            password="SecurePassword123!",
+            is_staff=True,
+        )
+        self.login_url = "/api/accounts/login/"
+        self.setup_url = "/api/accounts/2fa/setup/"
+        self.confirm_url = "/api/accounts/2fa/confirm/"
+
+    def credentials(self):
+        return {
+            "username": "testadmin",
+            "password": "SecurePassword123!",
+        }
+
+    def test_admin_without_2fa_cannot_receive_token(self):
+        response = self.client.post(
+            self.login_url,
+            self.credentials(),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(response.data["requires_2fa_setup"])
+        self.assertNotIn("token", response.data)
+
+    def test_admin_can_enroll_and_confirm_2fa(self):
+        setup = self.client.post(
+            self.setup_url,
+            self.credentials(),
+            format="json",
+        )
+
+        self.assertEqual(setup.status_code, status.HTTP_200_OK)
+        self.assertIn("config_url", setup.data)
+
+        device = TOTPDevice.objects.get(user=self.admin, confirmed=False)
+
+        confirm = self.client.post(
+            self.confirm_url,
+            {
+                **self.credentials(),
+                "token": totp(device.bin_key),
+            },
+            format="json",
+        )
+
+        self.assertEqual(confirm.status_code, status.HTTP_200_OK)
+
+        device.refresh_from_db()
+        self.assertTrue(device.confirmed)
+
+        security = AccountSecurity.objects.get(user=self.admin)
+        self.assertTrue(security.two_factor_enabled)
+
+    def test_admin_login_requires_valid_otp(self):
+        device = TOTPDevice.objects.create(
+            user=self.admin,
+            name="Test authenticator",
+            confirmed=True,
+        )
+
+
+        # An invalid code must not issue a token.
+        response = self.client.post(
+            self.login_url,
+            {
+                **self.credentials(),
+                "otp_token": "invalid",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("token", response.data)
+
+        # An incorrect code must not issue a token.
+        response = self.client.post(
+            self.login_url,
+            {
+                **self.credentials(),
+                "otp_token": totp(device.bin_key),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("token", response.data)
+
+        # A valid current code should issue a token.
+        response = self.client.post(
+            self.login_url,
+            {
+                **self.credentials(),
+                "otp_token": totp(device.bin_key),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+
+
+
+class TokenExpirationTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="expiryuser",
+            password="SecurePassword123!",
+        )
+        self.token = Token.objects.create(user=self.user)
+
+    def test_expired_token_is_rejected(self):
+        self.token.created = timezone.now() - timedelta(
+            hours=TOKEN_LIFETIME_HOURS + 1
+        )
+        self.token.save(update_fields=["created"])
+
+
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Token {self.token.key}"
+        )
+
+        response = self.client.get("/api/cart/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(Token.objects.filter(pk=self.token.pk).exists())
+
+    def test_fresh_token_is_accepted(self):
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Token {self.token.key}"
+        )
+
+        response = self.client.get("/api/cart/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
