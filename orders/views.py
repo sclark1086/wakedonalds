@@ -1,11 +1,15 @@
 from django.shortcuts import get_object_or_404, render
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import FulfillmentSettings, Order
-from .serializers import OrderStatusSerializer, QuoteRequestSerializer
+from .serializers import (
+    OrderHistorySerializer,
+    OrderStatusSerializer,
+    QuoteRequestSerializer,
+)
 from .services import calculate_totals
 
 
@@ -14,6 +18,7 @@ from .services import calculate_totals
 def fulfillment_options(request):
     """What the checkout page needs to draw the pickup/delivery choice."""
     s = FulfillmentSettings.load()
+
     return Response({
         "pickup_enabled": s.pickup_enabled,
         "delivery_enabled": s.delivery_enabled,
@@ -22,7 +27,9 @@ def fulfillment_options(request):
         "delivery_minimum_subtotal": s.delivery_minimum_subtotal,
         "tax_rate": s.tax_rate,
         "pickup_minutes": s.pickup_prep_minutes,
-        "delivery_minutes": s.pickup_prep_minutes + s.delivery_extra_minutes,
+        "delivery_minutes": (
+            s.pickup_prep_minutes + s.delivery_extra_minutes
+        ),
     })
 
 
@@ -30,17 +37,35 @@ def fulfillment_options(request):
 @permission_classes([AllowAny])
 def fulfillment_quote(request):
     """Validate a pickup/delivery choice and return the price breakdown."""
+
     store = FulfillmentSettings.load()
-    serializer = QuoteRequestSerializer(data=request.data, context={"store_settings": store})
+
+    serializer = QuoteRequestSerializer(
+        data=request.data,
+        context={"store_settings": store},
+    )
+
     if not serializer.is_valid():
-        return Response({"errors": serializer.errors}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        return Response(
+            {"errors": serializer.errors},
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
 
     kind = serializer.validated_data["fulfillment_type"]
-    totals = calculate_totals(serializer.validated_data["subtotal"], kind, store)
+
+    totals = calculate_totals(
+        serializer.validated_data["subtotal"],
+        kind,
+        store,
+    )
+
     return Response({
         "fulfillment_type": kind,
         **totals,
-        "estimated_ready_at": Order.estimate_ready_at(kind, store),
+        "estimated_ready_at": Order.estimate_ready_at(
+            kind,
+            store,
+        ),
     })
 
 
@@ -48,29 +73,75 @@ def fulfillment_quote(request):
 @permission_classes([IsAdminUser])
 def update_order_status(request, order_id):
     """Staff move an order one step along its pickup or delivery flow."""
+
     order = get_object_or_404(Order, pk=order_id)
+
     serializer = OrderStatusSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+
     new_status = serializer.validated_data["status"]
 
     if not order.status_matches_type():
         return Response(
-            {"errors": {"status": f"This {order.get_fulfillment_type_display().lower()} order is marked "
-                                  f"'{order.get_status_display()}', which doesn't fit its type. "
-                                  f"Fix it in the admin first."},
-             "next_status": None},
+            {
+                "errors": {
+                    "status": (
+                        f"This {order.get_fulfillment_type_display().lower()} "
+                        f"order is marked '{order.get_status_display()}', "
+                        "which doesn't fit its type. "
+                        "Fix it in the admin first."
+                    )
+                },
+                "next_status": None,
+            },
             status=status.HTTP_409_CONFLICT,
         )
+
     if not order.can_transition_to(new_status):
         return Response(
-            {"errors": {"status": f"A {order.get_fulfillment_type_display().lower()} order can't go from "
-                                  f"'{order.get_status_display()}' to '{Order.Status(new_status).label}'."},
-             "next_status": order.next_status()},
+            {
+                "errors": {
+                    "status": (
+                        f"A {order.get_fulfillment_type_display().lower()} "
+                        f"order can't go from "
+                        f"'{order.get_status_display()}' to "
+                        f"'{Order.Status(new_status).label}'."
+                    )
+                },
+                "next_status": order.next_status(),
+            },
             status=status.HTTP_409_CONFLICT,
         )
+
     order.status = new_status
     order.save(update_fields=["status", "updated_at"])
-    return Response({"id": order.pk, "status": order.status, "next_status": order.next_status()})
+
+    return Response({
+        "id": order.pk,
+        "status": order.status,
+        "next_status": order.next_status(),
+    })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def order_history(request):
+    """
+    Return previous orders for the currently logged-in customer.
+
+    Users can only see orders connected to their own account.
+    """
+
+    orders = Order.objects.filter(
+        user=request.user
+    ).order_by("-created_at")
+
+    serializer = OrderHistorySerializer(
+        orders,
+        many=True,
+    )
+
+    return Response(serializer.data)
 
 
 def checkout_view(request):
@@ -80,5 +151,14 @@ def checkout_view(request):
     TODO(cart merge): replace the demo subtotal with the real cart total
     once the cart branch is merged into main.
     """
-    demo_subtotal = request.GET.get("subtotal", "14.97")
-    return render(request, "orders/checkout.html", {"subtotal": demo_subtotal})
+
+    demo_subtotal = request.GET.get(
+        "subtotal",
+        "14.97",
+    )
+
+    return render(
+        request,
+        "orders/checkout.html",
+        {"subtotal": demo_subtotal},
+    )
