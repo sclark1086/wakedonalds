@@ -1,12 +1,66 @@
+import logging
+import os
+import re
+
+from django.db import transaction
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
+from twilio.http.http_client import TwilioHttpClient
+from twilio.rest import Client
+from decouple import config
 
 from .models import FulfillmentSettings, Order
 from .serializers import OrderStatusSerializer, QuoteRequestSerializer
 from .services import calculate_totals
+
+logger = logging.getLogger(__name__)
+
+
+def send_ready_sms(order):
+    """Send an SMS only for pickup orders with ready status."""
+    if (
+        order.fulfillment_type != Order.FulfillmentType.PICKUP
+        or order.status != Order.Status.READY_FOR_PICKUP
+    ):
+        return "not_applicable"
+
+    if not config("SMS_ENABLED", default=False, cast=bool):
+        return "disabled"
+
+    phone = order.contact_phone.strip()
+    if not re.fullmatch(r"[2-9][0-9]{9}", phone):
+        return "invalid_phone"
+
+    account_sid = config("TWILIO_ACCOUNT_SID", default="")
+    auth_token = config("TWILIO_AUTH_TOKEN", default="")
+    from_number = config("TWILIO_FROM_NUMBER", default="")
+
+    if not all([account_sid, auth_token, from_number]):
+        return "not_configured"
+
+    try:
+        client = Client(
+            account_sid,
+            auth_token,
+            http_client=TwilioHttpClient(timeout=10),
+        )
+
+        client.messages.create(
+            body="sms_order_confirmation",
+            from_=from_number,
+            to=f"+1{phone}",
+        )
+        return "submitted"
+
+    except Exception:
+        logger.exception(
+            "SMS submission failed for order %s.", order.pk
+        )
+        return "failed"
 
 
 @api_view(["GET"])
@@ -68,9 +122,35 @@ def update_order_status(request, order_id):
              "next_status": order.next_status()},
             status=status.HTTP_409_CONFLICT,
         )
-    order.status = new_status
-    order.save(update_fields=["status", "updated_at"])
-    return Response({"id": order.pk, "status": order.status, "next_status": order.next_status()})
+    previous_status = order.status
+
+    with transaction.atomic():
+        updated = Order.objects.filter(
+            pk=order.pk,
+            status=previous_status,
+        ).update(
+            status=new_status,
+            updated_at=timezone.now(),
+        )
+
+        if not updated:
+            return Response(
+                {"errors": {"status": "Order changed. Refresh and try again."}},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        order.status = new_status
+
+        if new_status == Order.Status.READY_FOR_PICKUP:
+            transaction.on_commit(
+                lambda: send_ready_sms(order)
+            )
+
+    return Response({
+        "id": order.pk,
+        "status": order.status,
+        "next_status": order.next_status(),
+    })
 
 
 def checkout_view(request):
