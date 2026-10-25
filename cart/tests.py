@@ -52,6 +52,34 @@ class CartAPITestCase(TestCase):
 
         self.assertEqual(item.quantity, 2)
 
+    def test_cannot_add_out_of_stock_product(self):
+        product = Product.objects.create(
+            name="Out of Stock Burger",
+            price=5.99,
+            stock=0
+        )
+
+        response = self.client.post(
+            "/api/cart/items/",
+            {
+                "product_id": product.id,
+                "quantity": 1
+            },
+            format="json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["error"],
+            "Product is out of stock"
+        )
+
+        self.assertFalse(
+            CartItem.objects.filter(
+                product=product,
+                cart__user=self.user
+            ).exists()
+        )
 
     def test_adding_same_product_increases_quantity(self):
         product = Product.objects.create(
