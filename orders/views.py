@@ -4,7 +4,6 @@ import re
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404, render
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAdminUser
@@ -122,29 +121,20 @@ def update_order_status(request, order_id):
              "next_status": order.next_status()},
             status=status.HTTP_409_CONFLICT,
         )
-    previous_status = order.status
-
     with transaction.atomic():
-        updated = Order.objects.filter(
-            pk=order.pk,
-            status=previous_status,
-        ).update(
-            status=new_status,
-            updated_at=timezone.now(),
+        order = get_object_or_404(
+            Order.objects.select_for_update(),
+            pk=order_id,
         )
 
-        if not updated:
+        if not order.status_matches_type() or not order.can_transition_to(new_status):
             return Response(
-                {"errors": {"status": "Order changed. Refresh and try again."}},
+                {"errors": {"status": "Order changed or invalid status. Refresh and try again."}},
                 status=status.HTTP_409_CONFLICT,
             )
 
         order.status = new_status
-
-        if new_status == Order.Status.READY_FOR_PICKUP:
-            transaction.on_commit(
-                lambda: send_ready_sms(order)
-            )
+        order.save()
 
     return Response({
         "id": order.pk,
