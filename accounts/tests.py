@@ -417,8 +417,7 @@ class AdminTwoFactorTests(APITestCase):
             confirmed=True,
         )
 
-
-        # An invalid code must not issue a token.
+        # A malformed code must not issue a token.
         response = self.client.post(
             self.login_url,
             {
@@ -427,19 +426,28 @@ class AdminTwoFactorTests(APITestCase):
             },
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
         self.assertNotIn("token", response.data)
 
-        # An incorrect code must not issue a token.
+        # An incorrect six-digit code must not issue a token.
+        valid_code = totp(device.bin_key)
+        wrong_code = f"{(int(valid_code) + 1) % 1_000_000:06d}"
+
         response = self.client.post(
             self.login_url,
             {
                 **self.credentials(),
-                "otp_token": totp(device.bin_key),
+                "otp_token": wrong_code,
             },
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
         self.assertNotIn("token", response.data)
 
         # A valid current code should issue a token.
@@ -453,7 +461,6 @@ class AdminTwoFactorTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("token", response.data)
-
 
 
 class TokenExpirationTests(APITestCase):
@@ -488,3 +495,195 @@ class TokenExpirationTests(APITestCase):
         response = self.client.get("/api/cart/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+
+class AdminTwoFactorLockoutTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="otp_lockout_admin",
+            password="SecurePassword123!",
+            is_staff=True,
+        )
+        self.device = TOTPDevice.objects.create(
+            user=self.admin,
+            name="Test authenticator",
+            confirmed=True,
+        )
+        self.login_url = "/api/accounts/login/"
+
+    def test_failed_otp_attempts_trigger_lockout(self):
+        for _ in range(3):
+            response = self.client.post(
+                self.login_url,
+                {
+                    "username": "otp_lockout_admin",
+                    "password": "SecurePassword123!",
+                    "otp_token": "000000",
+                },
+                format="json",
+            )
+
+        # The third failure should be rejected as an invalid OTP.
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        # Even correct credentials and OTP should be blocked.
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": "otp_lockout_admin",
+                "password": "SecurePassword123!",
+                "otp_token": totp(self.device.bin_key),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        self.assertNotIn("token", response.data)
+
+
+
+class TwoFactorEnrollmentLockoutTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="enrollment_admin",
+            password="SecurePassword123!",
+            is_staff=True,
+        )
+        self.setup_url = "/api/accounts/2fa/setup/"
+        self.confirm_url = "/api/accounts/2fa/confirm/"
+        self.credentials = {
+            "username": "enrollment_admin",
+            "password": "WrongPassword123!",
+        }
+
+    def test_failed_setup_password_attempts_trigger_lockout(self):
+        # Three incorrect passwords should trigger the lockout.
+        for _ in range(3):
+            response = self.client.post(
+                self.setup_url,
+                self.credentials,
+                format="json",
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        # Correct credentials must still be blocked by the lockout.
+        response = self.client.post(
+            self.setup_url,
+            {
+                "username": "enrollment_admin",
+                "password": "SecurePassword123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        self.assertNotIn("config_url", response.data)
+
+    def test_failed_confirmation_password_attempts_trigger_lockout(self):
+        # Start setup so an unconfirmed device exists.
+        setup = self.client.post(
+            self.setup_url,
+            {
+                "username": "enrollment_admin",
+                "password": "SecurePassword123!",
+            },
+            format="json",
+        )
+        self.assertEqual(setup.status_code, status.HTTP_200_OK)
+
+        # Three incorrect passwords should trigger the lockout.
+        for _ in range(3):
+            response = self.client.post(
+                self.confirm_url,
+                {
+                    "username": "enrollment_admin",
+                    "password": "WrongPassword123!",
+                    "token": "123456",
+                },
+                format="json",
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        # Correct credentials must still be blocked by the lockout.
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "username": "enrollment_admin",
+                "password": "SecurePassword123!",
+                "token": "123456",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        self.assertNotIn(
+            "message",
+            response.data,
+        )
+
+    def test_failed_confirmation_otp_attempts_trigger_lockout(self):
+        # Create an unconfirmed authenticator device.
+        device = TOTPDevice.objects.create(
+            user=self.admin,
+            name="Test authenticator",
+            confirmed=False,
+        )
+
+        # Generate an incorrect code based on this device.
+        valid_code = totp(device.bin_key)
+        wrong_code = f"{(int(valid_code) + 1) % 1_000_000:06d}"
+
+        # Three incorrect OTP codes should trigger the lockout.
+        for _ in range(3):
+            response = self.client.post(
+                self.confirm_url,
+                {
+                    "username": "enrollment_admin",
+                    "password": "SecurePassword123!",
+                    "token": wrong_code,
+                },
+                format="json",
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        # Even a valid code should be blocked after lockout.
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "username": "enrollment_admin",
+                "password": "SecurePassword123!",
+                "token": totp(device.bin_key),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        self.assertNotIn("message", response.data)

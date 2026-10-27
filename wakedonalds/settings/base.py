@@ -15,7 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-placeholder-change-me')
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    'wakedonalds.otp_admin.OTPAdminConfig',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -39,6 +39,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django_otp.middleware.OTPMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
