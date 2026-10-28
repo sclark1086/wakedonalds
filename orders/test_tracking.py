@@ -1,6 +1,7 @@
 """Tests for place order (UC1) and real-time order status tracking (3.3)."""
 
 from decimal import Decimal
+from django.apps import apps
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -242,6 +243,15 @@ class StatusHistoryTests(OrderTestBase):
         order = self.make_order()
         admin_user = User.objects.create_superuser("boss", password="x")
         self.client.force_login(admin_user)
+        if apps.is_installed("django_otp"):
+            # Once admin 2FA (PR #14) is merged, the admin needs a verified device.
+            from django_otp import DEVICE_ID_SESSION_KEY
+            from django_otp.plugins.otp_totp.models import TOTPDevice
+
+            device = TOTPDevice.objects.create(user=admin_user, name="test", confirmed=True)
+            session = self.client.session
+            session[DEVICE_ID_SESSION_KEY] = device.persistent_id
+            session.save()
 
         res = self.client.post(f"/admin/orders/order/{order.pk}/change/", {
             "fulfillment_type": "pickup",
