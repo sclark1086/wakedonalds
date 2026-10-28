@@ -93,12 +93,14 @@
         <p class="muted" data-free-hint hidden></p>
         <p class="muted" data-ready></p>
         <p class="error" data-error="subtotal" role="alert"></p>
-        <!-- The place-order task hooks in here: call WDFulfillment.isValid() then
-             send WDFulfillment.getPayload() along with the cart to the order API. -->
-        <button type="button" id="wd-continue" class="btn">Continue to payment</button>
+        <p class="muted">Final totals are calculated from your cart when you place the order.</p>
+        <p class="error" data-place-error role="alert"></p>
+        <button type="button" id="wd-place-order" class="btn"
+                data-place-url="{% url 'place-order' %}">Place order</button>
     </section>
 </main>
 
 <script src="{% static 'orders/fulfillment.js' %}"></script>
+<script src="{% static 'orders/place_order.js' %}"></script>
 </body>
 </html>
