@@ -7,10 +7,16 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 
+from accounts.models import RewardAccount
+from orders.models import FulfillmentSettings
+from orders.services import calculate_totals
 from .models import DeliveryZone, FulfillmentSettings, Order
 from .serializers import FulfillmentSerializer
 from .services import calculate_totals
-
+from django.urls import reverse
+from rest_framework.test import APIClient
+from cart.models import Cart, CartItem
+from products.models import Product
 GOOD_ADDRESS = {
     "street": "1 Main St",
     "city": "Springfield",
@@ -687,4 +693,144 @@ class OrderHistoryApiTests(TestCase):
         self.assertIn(
             "created_at",
             order,
+        )
+
+class RedemptionCheckoutTests(TestCase):
+
+    def setUp(self):
+        self.store = FulfillmentSettings.load()
+
+    def test_discount_reduces_order_total(self):
+        totals = calculate_totals(
+            Decimal("25.00"),
+            "pickup",
+            self.store,
+            redemption_discount=Decimal("5.00"),
+        )
+
+        self.assertEqual(
+            totals["subtotal"],
+            Decimal("25.00")
+        )
+        self.assertEqual(
+            totals["tax"],
+            Decimal("1.45")
+        )
+        self.assertEqual(
+            totals["total_price"],
+            Decimal("21.45")
+        )
+
+    def test_discount_cannot_exceed_subtotal(self):
+        with self.assertRaises(ValueError):
+            calculate_totals(
+                Decimal("10.00"),
+                "pickup",
+                self.store,
+                redemption_discount=Decimal("15.00"),
+            )
+
+    def test_checkout_without_redemption(self):
+        totals = calculate_totals(
+            Decimal("10.00"),
+            "pickup",
+            self.store,
+        )
+
+        self.assertEqual(
+            totals["total_price"],
+            Decimal("10.73")
+        )
+
+class RedemptionApiTests(TestCase):
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="redemptionapi",
+            password="TestPassword123!"
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        self.reward = RewardAccount.objects.create(
+            user=self.user,
+            points_balance=800,
+        )
+
+        self.product = Product.objects.create(
+            name="Burger",
+            price=Decimal("25.00"),
+            stock=10,
+        )
+
+        self.cart = Cart.objects.create(user=self.user)
+
+        CartItem.objects.create(
+            cart=self.cart,
+            product=self.product,
+            quantity=1,
+        )
+
+        self.url = reverse("order-place")
+
+    def test_api_redeems_points(self):
+        response = self.client.post(
+            self.url,
+            {
+                "fulfillment_type": "pickup",
+                "points_to_redeem": 500,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            201,
+            response.data,
+        )
+
+        self.reward.refresh_from_db()
+
+        self.assertEqual(
+            self.reward.points_balance,
+            300
+        )
+
+        self.assertEqual(
+            response.data["points_redeemed"],
+            500
+        )
+
+        self.assertEqual(
+            Decimal(str(response.data["redemption_discount"])),
+            Decimal("5.00"),
+        )
+
+        self.assertEqual(
+            Decimal(str(response.data["total_price"])),
+            Decimal("21.45"),
+        )
+
+    def test_api_rejects_insufficient_points(self):
+        response = self.client.post(
+            self.url,
+            {
+                "fulfillment_type": "pickup",
+                "points_to_redeem": 1000,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        self.reward.refresh_from_db()
+
+        self.assertEqual(
+            self.reward.points_balance,
+            800
+        )
+
+        self.assertFalse(
+            Order.objects.filter(user=self.user).exists()
         )

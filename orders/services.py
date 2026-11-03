@@ -18,19 +18,26 @@ def delivery_fee_for(subtotal, store_settings):
     return money(store_settings.delivery_fee)
 
 
-def calculate_totals(subtotal, fulfillment_type, store_settings):
-    """FR2 totals. Tax applies to food only; confirm with the team whether
-    the delivery fee should be taxed too."""
+
+def calculate_totals(subtotal,fulfillment_type,store_settings,redemption_discount=Decimal("0.00"),):
+    """Calculate checkout totals with optional reward discount."""
     subtotal = money(subtotal)
+    redemption_discount = money(redemption_discount)
+
+    if redemption_discount < 0:
+        raise ValueError("Discount cannot be negative.")
+
+    if redemption_discount > subtotal:
+        raise ValueError("Discount cannot exceed subtotal.")
+
     fee = (
         delivery_fee_for(subtotal, store_settings)
         if fulfillment_type == Order.FulfillmentType.DELIVERY
         else Decimal("0.00")
     )
-    tax = money(subtotal * store_settings.tax_rate)
-    return {
-        "subtotal": subtotal,
-        "delivery_fee": fee,
-        "tax": tax,
-        "total_price": subtotal + fee + tax,
-    }
+
+    discounted_subtotal = subtotal - redemption_discount
+
+    tax = money(discounted_subtotal * store_settings.tax_rate)
+
+    return {"subtotal": subtotal,"delivery_fee": fee,"tax": tax,"total_price": money(discounted_subtotal + fee + tax),}

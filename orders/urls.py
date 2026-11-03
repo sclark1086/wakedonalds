@@ -4,6 +4,11 @@ from . import views
 
 urlpatterns = [
     path(
+        "api/orders/place/",
+        views.place_order_view,
+        name="order-place"
+    ),
+    path(
         "api/fulfillment/options/",
         views.fulfillment_options,
         name="fulfillment-options"
