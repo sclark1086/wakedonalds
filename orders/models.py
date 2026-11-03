@@ -127,7 +127,8 @@ class Order(models.Model):
     delivery_fee = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("0.00"))
     tax = models.DecimalField(max_digits=10, decimal_places=2)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
-
+    points_earned = models.PositiveIntegerField(default=0,editable=False)
+    points_awarded = models.BooleanField(default=False,editable=False)
     contact_phone = models.CharField(max_length=10, blank=True)
     delivery_street = models.CharField(max_length=255, blank=True)
     delivery_unit = models.CharField(max_length=50, blank=True)
