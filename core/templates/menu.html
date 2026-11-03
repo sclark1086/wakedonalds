@@ -44,7 +44,7 @@
             background: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .menu-item h3 {
@@ -54,6 +54,26 @@
         .price {
             font-weight: bold;
             margin-top: 10px;
+        }
+
+        .availability {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .out-of-stock {
+            opacity: 0.55;
+            background: #e9e9e9;
+        }
+
+        .sold-out {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .stock-count {
+            font-size: 0.9rem;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -76,10 +96,32 @@
 
                 {% for item in items %}
 
-                    <div class="menu-item">
+                    <div class="menu-item {% if not item.available %}out-of-stock{% endif %}">
                         <h3>{{ item.name }}</h3>
+
                         <p>{{ item.description }}</p>
-                        <p class="price">${{ item.price }}</p>
+
+                        <p class="price">
+                            ${{ item.price }}
+                        </p>
+
+                        {% if item.available %}
+
+                            <p class="availability">
+                                Available
+                            </p>
+
+                            <p class="stock-count">
+                                Stock: {{ item.stock }}
+                            </p>
+
+                        {% else %}
+
+                            <p class="sold-out">
+                                Out of Stock
+                            </p>
+
+                        {% endif %}
                     </div>
 
                 {% endfor %}

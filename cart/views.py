@@ -29,6 +29,7 @@ class AddToCartView(APIView):
     def post(self, request):
         product_id = request.data.get("product_id")
         quantity = request.data.get("quantity", 1)
+
         if isinstance(quantity, bool) or isinstance(quantity, float):
             return Response(
                 {"error": "quantity must be a whole number"},
@@ -55,6 +56,14 @@ class AddToCartView(APIView):
             return Response(
                 {"error": "Product not found"},
                 status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Sprint 4 - Task 4.6
+        # Do not allow customers to add an out-of-stock product.
+        if product.stock == 0:
+            return Response(
+                {"error": "Product is out of stock"},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         cart, created = Cart.objects.get_or_create(
@@ -177,6 +186,3 @@ class UpdateCartItemView(APIView):
             {"message": "Item removed from cart"},
             status=status.HTTP_204_NO_CONTENT
         )
-
-
-
