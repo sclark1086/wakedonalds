@@ -14,18 +14,37 @@ def _digits(value):
 
 class DeliveryAddressSerializer(serializers.Serializer):
     street = serializers.CharField(max_length=255)
-    unit = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
+    unit = serializers.CharField(
+        max_length=50,
+        required=False,
+        allow_blank=True,
+        default=""
+    )
     city = serializers.CharField(max_length=100)
-    state = serializers.RegexField(r"^[A-Za-z]{2}$", error_messages={"invalid": "Enter a 2-letter state code."})
-    zip = serializers.RegexField(r"^\d{5}(-\d{4})?$", error_messages={"invalid": "Enter a 5-digit ZIP code."})
-    instructions = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    state = serializers.RegexField(
+        r"^[A-Za-z]{2}$",
+        error_messages={"invalid": "Enter a 2-letter state code."}
+    )
+    zip = serializers.RegexField(
+        r"^\d{5}(-\d{4})?$",
+        error_messages={"invalid": "Enter a 5-digit ZIP code."}
+    )
+    instructions = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        default=""
+    )
 
     def validate_state(self, value):
         return value.upper()
 
     def validate_zip(self, value):
         zip5 = value[:5]
-        if not DeliveryZone.objects.filter(zip_code=zip5, active=True).exists():
+        if not DeliveryZone.objects.filter(
+            zip_code=zip5,
+            active=True
+        ).exists():
             raise serializers.ValidationError(
                 "We don't deliver to this ZIP code yet. Choose pickup instead."
             )
@@ -42,47 +61,82 @@ class FulfillmentSerializer(serializers.Serializer):
 
     fulfillment_type = serializers.ChoiceField(
         choices=Order.FulfillmentType.choices,
-        error_messages={"invalid_choice": "Choose pickup or delivery."},
+        error_messages={
+            "invalid_choice": "Choose pickup or delivery."
+        },
     )
-    contact_phone = serializers.CharField(required=False, allow_blank=True, default="")
+
+    contact_phone = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default=""
+    )
+
     address = DeliveryAddressSerializer(required=False)
 
     def validate_contact_phone(self, value):
         digits = _digits(value)
+
         if digits and len(digits) != 10:
-            raise serializers.ValidationError("Enter a 10-digit phone number.")
+            raise serializers.ValidationError(
+                "Enter a 10-digit phone number."
+            )
+
         return digits
 
     def validate(self, data):
         store = self.context["store_settings"]
         subtotal = self.context["subtotal"]
         kind = data["fulfillment_type"]
+
         errors = {}
 
-        if kind == Order.FulfillmentType.PICKUP and not store.pickup_enabled:
-            errors["fulfillment_type"] = "Pickup is not available right now."
+        if (
+            kind == Order.FulfillmentType.PICKUP
+            and not store.pickup_enabled
+        ):
+            errors["fulfillment_type"] = (
+                "Pickup is not available right now."
+            )
+
         if kind == Order.FulfillmentType.DELIVERY:
             if not store.delivery_enabled:
-                errors["fulfillment_type"] = "Delivery is not available right now."
+                errors["fulfillment_type"] = (
+                    "Delivery is not available right now."
+                )
+
             if not data.get("address"):
-                errors["address"] = "Enter a delivery address."
+                errors["address"] = (
+                    "Enter a delivery address."
+                )
+
             if not data.get("contact_phone"):
-                errors["contact_phone"] = "Add a phone number so the driver can reach you."
+                errors["contact_phone"] = (
+                    "Add a phone number so the driver can reach you."
+                )
+
             if subtotal < store.delivery_minimum_subtotal:
                 errors["subtotal"] = (
-                    f"Delivery orders need a subtotal of at least ${store.delivery_minimum_subtotal}."
+                    "Delivery orders need a subtotal of at least "
+                    f"${store.delivery_minimum_subtotal}."
                 )
+
         else:
-            data.pop("address", None)  # ignore an address sent with a pickup order
+            data.pop("address", None)
 
         if errors:
             raise serializers.ValidationError(errors)
+
         return data
 
     def to_order_fields(self):
-        """Map validated data onto Order model fields."""
+        """
+        Map validated fulfillment data onto Order model fields.
+        """
+
         d = self.validated_data
         a = d.get("address") or {}
+
         return {
             "fulfillment_type": d["fulfillment_type"],
             "contact_phone": d.get("contact_phone", ""),
@@ -91,15 +145,26 @@ class FulfillmentSerializer(serializers.Serializer):
             "delivery_city": a.get("city", ""),
             "delivery_state": a.get("state", ""),
             "delivery_zip": a.get("zip", ""),
-            "delivery_instructions": a.get("instructions", ""),
+            "delivery_instructions": a.get(
+                "instructions",
+                ""
+            ),
         }
 
 
 class QuoteRequestSerializer(FulfillmentSerializer):
-    """Live price preview for the checkout page. The subtotal comes from the
-    browser, so the real place-order view must recompute it from DB prices."""
+    """
+    Live price preview for the checkout page.
 
-    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+    The subtotal comes from the browser, so the real place-order
+    view must recompute it from database prices.
+    """
+
+    subtotal = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=0
+    )
 
     def validate(self, data):
         self.context["subtotal"] = data["subtotal"]
@@ -107,4 +172,28 @@ class QuoteRequestSerializer(FulfillmentSerializer):
 
 
 class OrderStatusSerializer(serializers.Serializer):
-    status = serializers.ChoiceField(choices=Order.Status.choices)
+    status = serializers.ChoiceField(
+        choices=Order.Status.choices
+    )
+
+
+class OrderHistorySerializer(serializers.ModelSerializer):
+    """
+    Serializer for a logged-in customer's previous orders.
+    """
+
+    order_num = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            "id",
+            "order_num",
+            "created_at",
+            "status",
+            "fulfillment_type",
+            "subtotal",
+            "delivery_fee",
+            "tax",
+            "total_price",
+        ]
