@@ -1,3 +1,4 @@
+from django.test import override_settings
 from datetime import timedelta
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from accounts.models import AccountSecurity
@@ -353,6 +354,7 @@ class LoginLockoutTests(APITestCase):
 
 
 
+@override_settings(OTP_TOTP_THROTTLE_FACTOR=0)
 class AdminTwoFactorTests(APITestCase):
     def setUp(self):
         self.admin = User.objects.create_user(
@@ -397,7 +399,7 @@ class AdminTwoFactorTests(APITestCase):
             self.confirm_url,
             {
                 **self.credentials(),
-                "token": totp(device.bin_key),
+                "token": f"{totp(device.bin_key):06d}",
             },
             format="json",
         )
@@ -433,7 +435,7 @@ class AdminTwoFactorTests(APITestCase):
         self.assertNotIn("token", response.data)
 
         # An incorrect six-digit code must not issue a token.
-        valid_code = totp(device.bin_key)
+        valid_code = f"{totp(device.bin_key):06d}"
         wrong_code = f"{(int(valid_code) + 1) % 1_000_000:06d}"
 
         response = self.client.post(
@@ -455,7 +457,7 @@ class AdminTwoFactorTests(APITestCase):
             self.login_url,
             {
                 **self.credentials(),
-                "otp_token": totp(device.bin_key),
+                "otp_token": f"{totp(device.bin_key):06d}",
             },
             format="json",
         )
@@ -651,7 +653,7 @@ class TwoFactorEnrollmentLockoutTests(APITestCase):
         )
 
         # Generate an incorrect code based on this device.
-        valid_code = totp(device.bin_key)
+        valid_code = f"{totp(device.bin_key):06d}"
         wrong_code = f"{(int(valid_code) + 1) % 1_000_000:06d}"
 
         # Three incorrect OTP codes should trigger the lockout.
@@ -677,7 +679,7 @@ class TwoFactorEnrollmentLockoutTests(APITestCase):
             {
                 "username": "enrollment_admin",
                 "password": "SecurePassword123!",
-                "token": totp(device.bin_key),
+                "token": f"{totp(device.bin_key):06d}",
             },
             format="json",
         )
