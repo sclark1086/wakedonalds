@@ -60,3 +60,16 @@ def award_reward_points(order):
         order.save(update_fields=["points_earned", "points_awarded"])
 
         return points
+
+def calculate_redemption_discount(points):
+    """Convert 100 reward points into a $1 discount."""
+
+    if isinstance(points, bool) or not isinstance(points, int):
+        raise ValueError("Points must be a whole number.")
+
+    if points < 0:
+        raise ValueError("Points cannot be negative.")
+
+    return (Decimal(points) / Decimal("100")).quantize(
+        Decimal("0.01")
+    )

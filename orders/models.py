@@ -129,6 +129,8 @@ class Order(models.Model):
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     points_earned = models.PositiveIntegerField(default=0,editable=False)
     points_awarded = models.BooleanField(default=False,editable=False)
+    points_redeemed = models.PositiveIntegerField(default=0,editable=False)
+    redemption_discount = models.DecimalField(max_digits=10,decimal_places=2,default=Decimal("0.00"),editable=False)
     contact_phone = models.CharField(max_length=10, blank=True)
     delivery_street = models.CharField(max_length=255, blank=True)
     delivery_unit = models.CharField(max_length=50, blank=True)

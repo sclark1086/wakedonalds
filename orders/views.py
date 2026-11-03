@@ -3,16 +3,22 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
-
 from .models import FulfillmentSettings, Order
-from .serializers import (
-    OrderHistorySerializer,
-    OrderStatusSerializer,
-    QuoteRequestSerializer,
-)
+from .serializers import (OrderHistorySerializer,OrderStatusSerializer,QuoteRequestSerializer,)
 from .services import calculate_totals
-
-
+from decimal import Decimal, InvalidOperation
+from django.db import DatabaseError
+from .placement import (
+    place_order,
+    EmptyCartError,
+    OutOfStockError,
+    InsufficientPointsError,
+)
+from .serializers import FulfillmentSerializer
+from cart.models import CartItem
+from accounts.models import RewardAccount
+from django.urls import reverse
+from rest_framework.test import APIClient
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def fulfillment_options(request):
@@ -161,4 +167,137 @@ def checkout_view(request):
         request,
         "orders/checkout.html",
         {"subtotal": demo_subtotal},
+    )
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def place_order_view(request):
+    """Place an order and optionally redeem reward points."""
+
+    points = request.data.get("points_to_redeem", 0)
+
+    if isinstance(points, bool) or not str(points).isdigit():
+        return Response(
+            {"error": "Points must be a non-negative whole number."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    points = int(points)
+    store = FulfillmentSettings.load()
+
+    items = CartItem.objects.select_related("product").filter(
+        cart__user=request.user
+    )
+
+    subtotal = sum(
+        (item.product.price * item.quantity for item in items),
+        Decimal("0.00"),
+    )
+
+    serializer = FulfillmentSerializer(
+        data=request.data,
+        context={
+            "store_settings": store,
+            "subtotal": subtotal,
+        },
+    )
+
+    if not serializer.is_valid():
+        return Response(
+            {"errors": serializer.errors},
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    try:
+        order = place_order(
+            user=request.user,
+            fulfillment_fields=serializer.to_order_fields(),
+            store_settings=store,
+            points_to_redeem=points,
+        )
+    except EmptyCartError:
+        return Response(
+            {"error": "Your cart is empty."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except InsufficientPointsError:
+        return Response(
+            {"error": "You don't have enough reward points."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except OutOfStockError as exc:
+        return Response(
+            {"error": "Some items are out of stock.", "items": exc.problems},
+            status=status.HTTP_409_CONFLICT,
+        )
+    except ValueError as exc:
+        return Response(
+            {"error": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    reward = RewardAccount.objects.filter(user=request.user).first()
+
+    return Response(
+        {
+            "order_id": order.pk,
+            "subtotal": order.subtotal,
+            "redemption_discount": order.redemption_discount,
+            "points_redeemed": order.points_redeemed,
+            "tax": order.tax,
+            "delivery_fee": order.delivery_fee,
+            "total_price": order.total_price,
+            "remaining_points": reward.points_balance if reward else 0,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+
+def test_api_redeems_points(self):
+    response = self.client.post(
+        self.url,
+        {
+            "fulfillment_type": "pickup",
+            "points_to_redeem": 500,
+        },
+        format="json",
+    )
+
+    self.assertEqual(
+        response.status_code,
+        201,
+        response.data,
+    )
+
+    self.reward.refresh_from_db()
+
+    self.assertEqual(self.reward.points_balance, 300)
+    self.assertEqual(response.data["points_redeemed"], 500)
+    self.assertEqual(
+        Decimal(str(response.data["redemption_discount"])),
+        Decimal("5.00"),
+    )
+    self.assertEqual(
+        Decimal(str(response.data["total_price"])),
+        Decimal("21.45"),
+    )
+
+def test_api_rejects_insufficient_points(self):
+    response = self.client.post(
+        self.url,
+        {
+            "fulfillment_type": "pickup",
+            "points_to_redeem": 1000,
+        },
+        format="json",
+    )
+
+    self.assertEqual(response.status_code, 400)
+
+    self.reward.refresh_from_db()
+    self.assertEqual(self.reward.points_balance, 800)
+
+    self.assertFalse(
+        Order.objects.filter(user=self.user).exists()
     )
