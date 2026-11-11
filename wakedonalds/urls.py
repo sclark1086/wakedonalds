@@ -1,11 +1,16 @@
 # wakedonalds/urls.py
 
-
 from django.contrib import admin
 from django.urls import include, path
+
 from core.views import health_check, menu_view
 
+
 urlpatterns = [
+    # Sprint 5 - Task 5.1
+    # Must appear before the main admin/ route.
+    path('admin/reports/', include('products.urls')),
+
     path('admin/', admin.site.urls),
     path('api/health/', health_check, name='health-check'),
     path('api/cart/', include('cart.urls')),
