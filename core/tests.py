@@ -39,3 +39,53 @@ class OrderConfirmationEmailTests(SimpleTestCase):
         self.assertIn("Classic Burger x2", email.body)
         self.assertIn("French Fries x1", email.body)
         self.assertIn("$14.47", email.body)
+
+from django.test import TestCase
+from django.urls import reverse
+
+from products.models import Product
+
+
+class MenuAvailabilityTests(TestCase):
+
+    def test_menu_shows_available_and_out_of_stock_items(self):
+        Product.objects.create(
+            name="Classic Burger",
+            price=5.99,
+            stock=10
+        )
+
+        Product.objects.create(
+            name="Cheeseburger",
+            price=6.49,
+            stock=0
+        )
+
+        response = self.client.get(reverse("menu"))
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            "Classic Burger"
+        )
+
+        self.assertContains(
+            response,
+            "Available"
+        )
+
+        self.assertContains(
+            response,
+            "Stock: 10"
+        )
+
+        self.assertContains(
+            response,
+            "Cheeseburger"
+        )
+
+        self.assertContains(
+            response,
+            "Out of Stock"
+        )
