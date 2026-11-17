@@ -17,12 +17,13 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from cart.models import Cart, CartItem
 from products.models import Product
-GOOD_ADDRESS = {
-    "street": "1 Main St",
-    "city": "Springfield",
-    "state": "nc",
-    "zip": "12345",
-}
+GOOD_ADDRESS = {"street": "1 Main St","city": "Springfield","state": "nc","zip": "12345",}
+from decimal import Decimal
+from django.test import TestCase
+from django.utils import timezone
+from orders.models import Order
+from orders.reward_reports import monthly_reward_redemption_report
+
 
 
 class TotalsTests(TestCase):
@@ -834,3 +835,98 @@ class RedemptionApiTests(TestCase):
         self.assertFalse(
             Order.objects.filter(user=self.user).exists()
         )
+
+class MonthlyRewardReportTests(TestCase):
+
+    def create_order(self, points, discount):
+        return Order.objects.create(
+            fulfillment_type=Order.FulfillmentType.PICKUP,
+            status=Order.Status.RECEIVED,
+            subtotal=Decimal("25.00"),
+            tax=Decimal("1.81"),
+            total_price=Decimal("26.81"),
+            points_redeemed=points,
+            redemption_discount=Decimal(discount),
+        )
+
+    def test_monthly_reward_report(self):
+        """Check monthly redemption totals."""
+
+        self.create_order(100, "1.00")
+        self.create_order(200, "2.00")
+        self.create_order(300, "3.00")
+
+        today = timezone.localdate()
+
+        report = monthly_reward_redemption_report(
+            today.year,
+            today.month,
+        )
+
+        self.assertEqual(
+            report["total_points_redeemed"], 600
+        )
+
+        self.assertEqual(
+            report["total_money_saved"],
+            Decimal("6.00"),
+        )
+
+        self.assertEqual(
+            report["orders_with_redemptions"], 3
+        )
+
+    def test_no_redemptions(self):
+        """Check report when no points were redeemed."""
+
+        today = timezone.localdate()
+
+        report = monthly_reward_redemption_report(
+            today.year,
+            today.month,
+        )
+
+        self.assertEqual(
+            report["total_points_redeemed"], 0
+        )
+
+        self.assertEqual(
+            report["total_money_saved"],
+            Decimal("0.00"),
+        )
+
+        self.assertEqual(
+            report["orders_with_redemptions"], 0
+        )
+
+    def test_orders_without_redemptions(self):
+        """Orders without redeemed points should not count."""
+
+        self.create_order(0, "0.00")
+        self.create_order(100, "1.00")
+
+        today = timezone.localdate()
+
+        report = monthly_reward_redemption_report(
+            today.year,
+            today.month,
+        )
+
+        self.assertEqual(
+            report["total_points_redeemed"], 100
+        )
+
+        self.assertEqual(
+            report["total_money_saved"],
+            Decimal("1.00"),
+        )
+
+        self.assertEqual(
+            report["orders_with_redemptions"], 1
+        )
+
+    def test_invalid_month(self):
+        """Reject invalid month values."""
+
+        with self.assertRaises(ValueError):
+            monthly_reward_redemption_report(2026, 13)
