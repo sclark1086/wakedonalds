@@ -1,0 +1,78 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Wakedonalds Menu"
+msgstr "Menu Wakedonalds"
+
+msgid "Browse our menu by category"
+msgstr "Parcourez notre menu par catégorie"
+
+msgid "Language"
+msgstr "Langue"
+
+msgid "Available"
+msgstr "Disponible"
+
+msgid "Stock"
+msgstr "Stock"
+
+msgid "Out of Stock"
+msgstr "Épuisé"
+
+msgid "Burgers"
+msgstr "Burgers"
+
+msgid "Classic Burger"
+msgstr "Burger classique"
+
+msgid "Beef patty with lettuce, tomato, pickles, and house sauce."
+msgstr "Steak haché avec laitue, tomate, cornichons et sauce maison."
+
+msgid "Cheeseburger"
+msgstr "Cheeseburger"
+
+msgid "Beef patty with American cheese, lettuce, tomato, and pickles."
+msgstr "Steak haché avec fromage américain, laitue, tomate et cornichons."
+
+msgid "Sides"
+msgstr "Accompagnements"
+
+msgid "French Fries"
+msgstr "Frites"
+
+msgid "Crispy golden fries."
+msgstr "Frites dorées et croustillantes."
+
+msgid "Onion Rings"
+msgstr "Rondelles d’oignon"
+
+msgid "Crispy battered onion rings."
+msgstr "Rondelles d’oignon enrobées de pâte et croustillantes."
+
+msgid "Drinks"
+msgstr "Boissons"
+
+msgid "Soft Drink"
+msgstr "Soda"
+
+msgid "Choice of fountain drink."
+msgstr "Choisissez une boisson à la fontaine."
+
+msgid "Iced Tea"
+msgstr "Thé glacé"
+
+msgid "Freshly brewed iced tea."
+msgstr "Thé glacé fraîchement infusé."
+
+msgid "Desserts"
+msgstr "Desserts"
+
+msgid "Apple Pie"
+msgstr "Tarte aux pommes"
+
+msgid "Warm apple pie."
+msgstr "Tarte aux pommes chaude."
