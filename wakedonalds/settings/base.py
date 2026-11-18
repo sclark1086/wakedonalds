@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'inventory',
     'cart',
     'accounts',
+    'rewards',
     'rest_framework.authtoken',
 ]
 
