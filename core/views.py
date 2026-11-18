@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as _
 from django.db import connection
 from django.shortcuts import render
 from rest_framework.decorators import api_view
@@ -32,56 +33,56 @@ def health_check(request):
 
 def menu_view(request):
     categories = {
-        "Burgers": [
+        _("Burgers"): [
             {
-                "name": "Classic Burger",
+                "name": _("Classic Burger"),
                 "price": 5.99,
-                "description": (
+                "description": _(
                     "Beef patty with lettuce, tomato, "
                     "pickles, and house sauce."
                 ),
             },
             {
-                "name": "Cheeseburger",
+                "name": _("Cheeseburger"),
                 "price": 6.49,
-                "description": (
+                "description": _(
                     "Beef patty with American cheese, "
                     "lettuce, tomato, and pickles."
                 ),
             },
         ],
 
-        "Sides": [
+        _("Sides"): [
             {
-                "name": "French Fries",
+                "name": _("French Fries"),
                 "price": 2.49,
-                "description": "Crispy golden fries.",
+                "description": _("Crispy golden fries."),
             },
             {
-                "name": "Onion Rings",
+                "name": _("Onion Rings"),
                 "price": 3.49,
-                "description": "Crispy battered onion rings.",
+                "description": _("Crispy battered onion rings."),
             },
         ],
 
-        "Drinks": [
+        _("Drinks"): [
             {
-                "name": "Soft Drink",
+                "name": _("Soft Drink"),
                 "price": 1.99,
-                "description": "Choice of fountain drink.",
+                "description": _("Choice of fountain drink."),
             },
             {
-                "name": "Iced Tea",
+                "name": _("Iced Tea"),
                 "price": 1.99,
-                "description": "Freshly brewed iced tea.",
+                "description": _("Freshly brewed iced tea."),
             },
         ],
 
-        "Desserts": [
+        _("Desserts"): [
             {
-                "name": "Apple Pie",
+                "name": _("Apple Pie"),
                 "price": 2.99,
-                "description": "Warm apple pie.",
+                "description": _("Warm apple pie."),
             },
         ],
     }

@@ -1,9 +1,11 @@
+
+{% load i18n %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ LANGUAGE_CODE }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wakedonalds Menu</title>
+    <title>{% translate "Wakedonalds Menu" %}</title>
 
     <style>
         body {
@@ -75,14 +77,45 @@
             font-size: 0.9rem;
             margin-top: 5px;
         }
+
+        .language-selector {
+            margin-top: 15px;
+        }
+
+        .language-selector select {
+            padding: 8px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 
 <body>
 
 <header>
-    <h1>Wakedonalds Menu</h1>
-    <p>Browse our menu by category</p>
+    <h1>{% translate "Wakedonalds Menu" %}</h1>
+    <p>{% translate "Browse our menu by category" %}</p>
+
+    <form class="language-selector"
+          action="{% url 'set_language' %}"
+          method="post">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+        <label for="language">{% translate "Language" %}:</label>
+
+        <select name="language" id="language"
+                onchange="this.form.submit()">
+            <option value="en" {% if LANGUAGE_CODE == 'en' %}selected{% endif %}>
+                English
+            </option>
+            <option value="es" {% if LANGUAGE_CODE == 'es' %}selected{% endif %}>
+                Español
+            </option>
+            <option value="fr" {% if LANGUAGE_CODE == 'fr' %}selected{% endif %}>
+                Français
+            </option>
+        </select>
+    </form>
 </header>
 
 <div class="container">
@@ -108,17 +141,17 @@
                         {% if item.available %}
 
                             <p class="availability">
-                                Available
+                                {% translate "Available" %}
                             </p>
 
                             <p class="stock-count">
-                                Stock: {{ item.stock }}
+                                {% translate "Stock" %}: {{ item.stock }}
                             </p>
 
                         {% else %}
 
                             <p class="sold-out">
-                                Out of Stock
+                                {% translate "Out of Stock" %}
                             </p>
 
                         {% endif %}

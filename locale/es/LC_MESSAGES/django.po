@@ -1,0 +1,79 @@
+
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Wakedonalds Menu"
+msgstr "Menú de Wakedonalds"
+
+msgid "Browse our menu by category"
+msgstr "Explore nuestro menú por categoría"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "Available"
+msgstr "Disponible"
+
+msgid "Stock"
+msgstr "Existencias"
+
+msgid "Out of Stock"
+msgstr "Agotado"
+
+msgid "Burgers"
+msgstr "Hamburguesas"
+
+msgid "Classic Burger"
+msgstr "Hamburguesa clásica"
+
+msgid "Beef patty with lettuce, tomato, pickles, and house sauce."
+msgstr "Hamburguesa de carne de res con lechuga, tomate, pepinillos y salsa de la casa."
+
+msgid "Cheeseburger"
+msgstr "Hamburguesa con queso"
+
+msgid "Beef patty with American cheese, lettuce, tomato, and pickles."
+msgstr "Hamburguesa de carne de res con queso americano, lechuga, tomate y pepinillos."
+
+msgid "Sides"
+msgstr "Acompañamientos"
+
+msgid "French Fries"
+msgstr "Papas fritas"
+
+msgid "Crispy golden fries."
+msgstr "Papas fritas doradas y crujientes."
+
+msgid "Onion Rings"
+msgstr "Aros de cebolla"
+
+msgid "Crispy battered onion rings."
+msgstr "Aros de cebolla crujientes y empanizados."
+
+msgid "Drinks"
+msgstr "Bebidas"
+
+msgid "Soft Drink"
+msgstr "Refresco"
+
+msgid "Choice of fountain drink."
+msgstr "Elija una bebida de máquina."
+
+msgid "Iced Tea"
+msgstr "Té helado"
+
+msgid "Freshly brewed iced tea."
+msgstr "Té helado recién preparado."
+
+msgid "Desserts"
+msgstr "Postres"
+
+msgid "Apple Pie"
+msgstr "Pastel de manzana"
+
+msgid "Warm apple pie."
+msgstr "Pastel de manzana caliente."
